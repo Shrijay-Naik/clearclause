@@ -896,3 +896,33 @@ body {
   color: var(--muted);
   margin: 0 0 12px;
 }
+/* Wake-up screen */
+.wake {
+  max-width: 560px;
+  margin: 60px auto 0;
+  text-align: center;
+  padding: 56px 32px;
+}
+.wake .spinner {
+  margin-bottom: 8px;
+}
+.wake h3 {
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 1.5rem;
+  margin: 20px 0 8px;
+}
+.wake p {
+  color: var(--muted);
+  margin: 12px 0 0;
+}
+.wake-timer {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+  color: var(--gold) !important;
+}
+.slow-note {
+  font-size: 0.88rem;
+  max-width: 380px;
+  margin: 14px auto 0 !important;
+}

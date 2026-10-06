@@ -4,6 +4,7 @@ import Loading from "./components/Loading";
 import ResultView from "./components/ResultView";
 import AuthScreen from "./components/AuthScreen";
 import History from "./components/History";
+import WakeUp from "./components/WakeUp";
 import {
   apiFetch,
   clearToken,
@@ -16,7 +17,7 @@ const MAX_MB = 10;
 
 export default function App() {
   const [user, setUser] = useState(null);
-  const [booting, setBooting] = useState(true); // checking for a saved login
+  const [booting, setBooting] = useState(true); // waiting for the backend
   const [view, setView] = useState("home"); // home | history
   const [domains, setDomains] = useState([]);
   const [domain, setDomain] = useState("finance");
@@ -33,25 +34,43 @@ export default function App() {
     setError("");
   }
 
-  // On page load: backend status, domains, and whether a saved login still works
   useEffect(() => {
     setUnauthorizedHandler(logout);
+    let cancelled = false;
 
-    apiFetch("/api/domains")
-      .then((data) => {
-        setDomains(data.domains);
-        setStatus("ok");
-      })
-      .catch(() => setStatus("bad"));
+    async function boot() {
+      // Free hosting sleeps when idle, so keep retrying for about 2 minutes
+      for (let attempt = 0; attempt < 40 && !cancelled; attempt++) {
+        try {
+          const data = await apiFetch("/api/domains");
+          if (cancelled) return;
+          setDomains(data.domains);
+          setStatus("ok");
 
-    if (getToken()) {
-      apiFetch("/api/me")
-        .then((u) => setUser(u))
-        .catch(() => clearToken())
-        .finally(() => setBooting(false));
-    } else {
-      setBooting(false);
+          // Only now that the backend is awake do we check the saved login
+          if (getToken()) {
+            try {
+              setUser(await apiFetch("/api/me"));
+            } catch {
+              // A 401 already logs the user out; other errors just show the login screen
+            }
+          }
+          setBooting(false);
+          return;
+        } catch {
+          await new Promise((r) => setTimeout(r, 3000));
+        }
+      }
+      if (!cancelled) {
+        setStatus("bad");
+        setBooting(false);
+      }
     }
+
+    boot();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   function handleAuth(data) {
@@ -104,7 +123,21 @@ export default function App() {
     bad: "Backend offline",
   }[status];
 
-  if (booting) return <div className="page" />;
+  if (booting) {
+    return (
+      <div className="page">
+        <div className="container">
+          <header className="header">
+            <div className="brand">
+              <span className="brand-mark">§</span>
+              ClearClause
+            </div>
+          </header>
+          <WakeUp />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="page">
