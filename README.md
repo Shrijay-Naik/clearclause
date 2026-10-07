@@ -173,14 +173,14 @@ clearclause/
 
 ## Team
 
-Capstone project, [University name].
+Capstone project, [VIT-AP University].
 
 | Domain | Member |
 |---|---|
-| Finance | [Your name] |
-| HR | [Teammate] |
-| Medical | [Teammate] |
-| Court / legal | [Teammate] |
+| Finance | [Shrijay Pramod Naik] |
+| HR | [Prashant Singh] |
+| Medical | [Shatadru Adhikary] |
+| Court / legal | [Aravind Peetha] |
 
 ## Disclaimer
 
