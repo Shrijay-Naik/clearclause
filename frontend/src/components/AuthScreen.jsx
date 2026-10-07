@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { apiFetch } from "../api";
 
-export default function AuthScreen({ onAuth }) {
+export default function AuthScreen({ onAuth, onOpenPrivacy }) {
   const [mode, setMode] = useState("login"); // login | signup
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -21,6 +22,10 @@ export default function AuthScreen({ onAuth }) {
 
     if (isSignup && password.length < 8) {
       setError("Your password needs at least 8 characters.");
+      return;
+    }
+    if (isSignup && !agreed) {
+      setError("Please tick the box to confirm you've read the privacy note.");
       return;
     }
 
@@ -87,6 +92,24 @@ export default function AuthScreen({ onAuth }) {
             required
           />
         </label>
+
+        {isSignup && (
+          <label className="consent">
+            <input
+              type="checkbox"
+              checked={agreed}
+              onChange={(e) => setAgreed(e.target.checked)}
+            />
+            <span>
+              I understand this gives general information, not legal or financial
+              advice, and I've read the{" "}
+              <button type="button" className="link" onClick={onOpenPrivacy}>
+                privacy note
+              </button>
+              .
+            </span>
+          </label>
+        )}
 
         {error && <div className="error-box">{error}</div>}
 

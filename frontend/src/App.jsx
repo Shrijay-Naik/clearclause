@@ -5,6 +5,8 @@ import ResultView from "./components/ResultView";
 import AuthScreen from "./components/AuthScreen";
 import History from "./components/History";
 import WakeUp from "./components/WakeUp";
+import Footer from "./components/Footer";
+import PrivacyModal from "./components/PrivacyModal";
 import {
   apiFetch,
   clearToken,
@@ -25,6 +27,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
+  const [showPrivacy, setShowPrivacy] = useState(false);
 
   function logout() {
     clearToken();
@@ -172,7 +175,10 @@ export default function App() {
         </header>
 
         {!user ? (
-          <AuthScreen onAuth={handleAuth} />
+                    <AuthScreen
+            onAuth={handleAuth}
+            onOpenPrivacy={() => setShowPrivacy(true)}
+          />
         ) : view === "history" ? (
           <History onOpen={openFromHistory} onNew={goNew} />
         ) : result ? (
@@ -205,10 +211,18 @@ export default function App() {
             <section className="upload-area">
               {loading ? <Loading /> : <UploadZone onFile={handleFile} disabled={loading} />}
               {error && <div className="error-box">{error}</div>}
+                            <p className="upload-note">
+                Your file is sent to an AI service for analysis. Please don't
+                upload documents containing ID or bank account numbers.
+              </p>
             </section>
-          </>
+                    </>
         )}
+
+        <Footer onOpenPrivacy={() => setShowPrivacy(true)} />
       </div>
+
+      {showPrivacy && <PrivacyModal onClose={() => setShowPrivacy(false)} />}
     </div>
   );
 }
