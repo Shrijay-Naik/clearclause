@@ -13,7 +13,7 @@ import models
 from ai_service import analyze_document, chat_with_document
 from auth import create_token, get_current_user, hash_password, verify_password
 from database import Base, engine, get_db
-from domains import DOMAINS
+from domains import DOMAINS, find_glossary
 from pdf_utils import extract_text
 
 Base.metadata.create_all(bind=engine)
@@ -156,6 +156,7 @@ async def analyze(
         "pages": doc.pages,
         "domain": doc.domain,
         "analysis": doc.analysis,
+        "glossary": find_glossary(doc.text, DOMAINS[doc.domain]),
     }
 
 
@@ -204,6 +205,7 @@ def get_document(
         "pages": doc.pages,
         "domain": doc.domain,
         "analysis": doc.analysis,
+        "glossary": find_glossary(doc.text, DOMAINS[doc.domain]),
     }
 
 

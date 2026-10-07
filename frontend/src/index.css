@@ -926,3 +926,54 @@ body {
   max-width: 380px;
   margin: 14px auto 0 !important;
 }
+/* Glossary */
+.glossary-wrap {
+  margin-top: 40px;
+}
+.glossary-sub {
+  margin: -8px 0 16px;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+.glossary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 10px;
+  align-items: start;
+}
+.gloss {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 0 18px;
+  transition: box-shadow 0.2s ease;
+}
+.gloss[open] {
+  box-shadow: var(--shadow);
+  border-color: var(--accent);
+}
+.gloss summary {
+  cursor: pointer;
+  padding: 14px 0;
+  font-weight: 500;
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.gloss summary::-webkit-details-marker {
+  display: none;
+}
+.gloss summary::after {
+  content: "+";
+  font-size: 1.3rem;
+  color: var(--muted);
+}
+.gloss[open] summary::after {
+  content: "−";
+}
+.gloss p {
+  margin: 0 0 16px;
+  color: var(--muted);
+  line-height: 1.65;
+}

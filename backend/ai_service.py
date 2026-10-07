@@ -35,6 +35,7 @@ Respond with ONLY valid JSON in exactly this shape:
 }
 Order risky_clauses from most to least severe. Only use information from the document.
 If something is not in the document, do not invent it.
+Use the same currency symbols as the document. Never assume a currency that is not written there.
 """
 
 
@@ -71,7 +72,7 @@ def chat_with_document(text: str, domain: dict, history: list, question: str) ->
         "- Use simple language a teenager could understand.\n"
         "- Mention the relevant clause or section number when you can.\n"
         "- Keep answers short, and use a quick example with numbers when it helps.\n"
-        "- Use the same currency symbol as the document. If the document has none, "
+        "- Use the same currency symbol as the document. If the document shows none, "
         "do not assume one; write plain numbers.\n"
         "- You are not a lawyer; this is general information, not legal advice.\n\n"
         f"DOCUMENT:\n{text[:MAX_CHARS]}"

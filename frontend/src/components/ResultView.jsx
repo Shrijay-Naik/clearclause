@@ -43,6 +43,7 @@ function RiskCard({ item, defaultOpen }) {
 export default function ResultView({ result, onReset, api }) {
   const a = result.analysis;
   const keyTerms = a.key_terms || [];
+  const glossary = result.glossary || [];
   const risks = [...(a.risky_clauses || [])].sort(
     (x, y) => ORDER[normalize(x.severity)] - ORDER[normalize(y.severity)]
   );
@@ -100,6 +101,22 @@ export default function ResultView({ result, onReset, api }) {
             {risks.map((r, i) => (
               <RiskCard key={i} item={r} defaultOpen={i === 0} />
             ))}
+          </div>
+        )}
+                {glossary.length > 0 && (
+          <div className="glossary-wrap">
+            <h3 className="section-title">Terms explained</h3>
+            <p className="glossary-sub">
+              Finance words found in your document, in plain English. Tap to open.
+            </p>
+            <div className="glossary">
+              {glossary.map((g) => (
+                <details className="gloss" key={g.term}>
+                  <summary>{g.term}</summary>
+                  <p>{g.meaning}</p>
+                </details>
+              ))}
+            </div>
           </div>
         )}
         <div className="chat-wrap">
