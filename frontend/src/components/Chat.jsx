@@ -18,7 +18,7 @@ function renderInline(text) {
   );
 }
 
-export default function Chat({ api, documentId }) {
+export default function Chat({ documentId, suggestions }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -76,7 +76,7 @@ export default function Chat({ api, documentId }) {
       <div className="chat-box" ref={boxRef}>
         {messages.length === 0 && (
           <div className="suggestions">
-            {SUGGESTIONS.map((s) => (
+            {(suggestions && suggestions.length ? suggestions : SUGGESTIONS).map((s) => (
               <button key={s} className="suggestion" onClick={() => send(s)}>
                 {s}
               </button>

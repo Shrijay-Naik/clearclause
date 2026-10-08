@@ -40,7 +40,7 @@ function RiskCard({ item, defaultOpen }) {
   );
 }
 
-export default function ResultView({ result, onReset, api }) {
+export default function ResultView({ result, onReset, domainInfo }) {
   const a = result.analysis;
   const keyTerms = a.key_terms || [];
   const glossary = result.glossary || [];
@@ -120,10 +120,13 @@ export default function ResultView({ result, onReset, api }) {
           </div>
         )}
         <div className="chat-wrap">
-          <Chat api={api} documentId={result.document_id} />
+          <Chat
+            documentId={result.document_id}
+            suggestions={domainInfo?.chat_suggestions}
+          />
         </div>
-        <p className="disclaimer">
-          ClearClause gives general information, not legal or financial advice.
+                <p className="disclaimer">
+          {domainInfo?.disclaimer || "General information, not professional advice."}{" "}
           For important decisions, consult a qualified professional.
         </p>
       </section>

@@ -1066,3 +1066,13 @@ body {
 .modal .btn {
   margin-top: 24px;
 }
+/* Domain note above the upload box */
+.domain-note {
+  margin: 0 0 16px;
+  text-align: center;
+  font-size: 0.92rem;
+  color: var(--muted);
+}
+.domain-note strong {
+  color: var(--accent);
+}

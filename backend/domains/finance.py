@@ -2,6 +2,24 @@ CONFIG = {
     "id": "finance",
     "name": "Finance",
     "description": "Loan agreements, credit card terms, insurance policies",
+        "accepts": "Loan agreements, credit card terms, insurance policies",
+    "reader": "borrower",
+    "example_document_type": "Personal Loan Agreement",
+    "disclaimer": "General information, not legal or financial advice.",
+    "key_term_hints": [
+        "Interest rate",
+        "Loan amount",
+        "Repayment period or monthly instalment",
+        "Late payment penalty",
+        "Fees and charges",
+        "Collateral or guarantor",
+    ],
+    "chat_suggestions": [
+        "What happens if I miss a payment?",
+        "Can I repay this early without a fee?",
+        "Which clause should I negotiate first?",
+        "Explain this to me like I'm 15",
+    ],
     "role": (
         "You are an expert in consumer finance contracts such as loan agreements, "
         "credit card terms and insurance policies. You help ordinary people understand "

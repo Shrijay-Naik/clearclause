@@ -120,6 +120,7 @@ export default function App() {
     setView("home");
   }
 
+  const currentDomain = domains.find((d) => d.id === domain);
   const statusText = {
     checking: "Connecting…",
     ok: "Backend connected",
@@ -182,7 +183,11 @@ export default function App() {
         ) : view === "history" ? (
           <History onOpen={openFromHistory} onNew={goNew} />
         ) : result ? (
-          <ResultView result={result} onReset={goNew} />
+          <ResultView
+            result={result}
+            onReset={goNew}
+            domainInfo={domains.find((d) => d.id === result.domain)}
+          />
         ) : (
           <>
             <section className="hero">
@@ -191,8 +196,8 @@ export default function App() {
                 Understand what you sign, <em>in plain English.</em>
               </h1>
               <p>
-                Upload a loan agreement or financial contract. Get a clear summary,
-                the risky clauses flagged, and answers to your questions.
+                                Upload a contract or legal document. Get a clear summary, the
+                risky clauses flagged, and answers to your questions.
               </p>
 
               <div className="chips">
@@ -209,6 +214,12 @@ export default function App() {
             </section>
 
             <section className="upload-area">
+                            {currentDomain && (
+                <p className="domain-note">
+                  <strong>{currentDomain.name}</strong> works best with:{" "}
+                  {currentDomain.accepts}
+                </p>
+              )}
               {loading ? <Loading /> : <UploadZone onFile={handleFile} disabled={loading} />}
               {error && <div className="error-box">{error}</div>}
                             <p className="upload-note">

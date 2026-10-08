@@ -46,8 +46,19 @@ def home():
 
 @app.get("/api/domains")
 def list_domains():
-    return {"domains": [{"id": d["id"], "name": d["name"]} for d in DOMAINS.values()]}
-
+    return {
+        "domains": [
+            {
+                "id": d["id"],
+                "name": d["name"],
+                "description": d["description"],
+                "accepts": d["accepts"],
+                "chat_suggestions": d["chat_suggestions"],
+                "disclaimer": d["disclaimer"],
+            }
+            for d in DOMAINS.values()
+        ]
+    }
 
 # ---------- Accounts ----------
 
