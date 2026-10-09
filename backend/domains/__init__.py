@@ -1,10 +1,17 @@
 import re
 
+from .court import CONFIG as court
 from .finance import CONFIG as finance
+from .hr import CONFIG as hr
+from .medical import CONFIG as medical
 
 # To add a domain: create a file like hr.py with a CONFIG dictionary,
 # import it above, and add it to this list.
-_ALL = [finance]
+_ALL = [finance, hr, medical, court]
+
+# Optional result sections a domain can switch on with "extra_sections".
+# Keep in sync with EXTRA_SECTIONS in ai_service.py.
+KNOWN_SECTIONS = {"action_items", "questions_to_ask", "missing"}
 
 _REQUIRED = {
     "id": str,
@@ -15,11 +22,16 @@ _REQUIRED = {
     "reader": str,
     "example_document_type": str,
     "disclaimer": str,
+    "upload_warning": str,
     "risk_checklist": list,
     "key_term_hints": list,
-    "chat_suggestions": list,
     "glossary": list,
+    "guardrails": list,
+    "extra_sections": list,
+    "features": dict,
+    "sections": dict,
 }
+_ALLOW_EMPTY = {"extra_sections"}
 
 
 def _validate(cfg: dict) -> None:
@@ -27,16 +39,24 @@ def _validate(cfg: dict) -> None:
     for field, kind in _REQUIRED.items():
         if field not in cfg:
             raise ValueError(f"Domain '{name}' is missing the field '{field}'")
-        if not isinstance(cfg[field], kind) or not cfg[field]:
-            raise ValueError(
-                f"Domain '{name}': '{field}' must be a non-empty {kind.__name__}"
-            )
+        if not isinstance(cfg[field], kind):
+            raise ValueError(f"Domain '{name}': '{field}' must be a {kind.__name__}")
+        if field not in _ALLOW_EMPTY and not cfg[field]:
+            raise ValueError(f"Domain '{name}': '{field}' must not be empty")
+
+    for section in cfg["extra_sections"]:
+        if section not in KNOWN_SECTIONS:
+            raise ValueError(f"Domain '{name}': unknown extra section '{section}'")
+
+    if "chat" not in cfg["features"]:
+        raise ValueError(f"Domain '{name}': features must include 'chat' (True or False)")
+    if cfg["features"]["chat"] and not cfg.get("chat_suggestions"):
+        raise ValueError(f"Domain '{name}' has chat turned on, so it needs 'chat_suggestions'")
+
     for i, entry in enumerate(cfg["glossary"]):
         for key in ("term", "aliases", "meaning"):
             if key not in entry:
-                raise ValueError(
-                    f"Domain '{name}': glossary entry {i + 1} is missing '{key}'"
-                )
+                raise ValueError(f"Domain '{name}': glossary entry {i + 1} is missing '{key}'")
 
 
 for _cfg in _ALL:

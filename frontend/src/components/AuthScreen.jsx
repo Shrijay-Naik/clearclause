@@ -61,7 +61,7 @@ export default function AuthScreen({ onAuth, onOpenPrivacy }) {
           Understand what you sign, <em>in plain English.</em>
         </h1>
         <p>
-          Create a free account to analyse contracts, spot risky clauses,
+          Create a free account to analyse contracts and legal papers, spot risky clauses
           and keep every document in one place.
         </p>
       </div>

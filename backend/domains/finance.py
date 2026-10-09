@@ -20,6 +20,20 @@ CONFIG = {
         "Which clause should I negotiate first?",
         "Explain this to me like I'm 15",
     ],
+    "features": {"chat": True},
+    "extra_sections": ["missing"],
+    "sections": {
+        "risks": {"title": "Watch out for"},
+        "missing": {
+            "title": "Not mentioned in this document",
+            "note": "Worth asking the lender about, because the document stays silent on these.",
+        },
+    },
+    "upload_warning": "Remove Aadhaar, PAN, bank account and card numbers before uploading.",
+    "guardrails": [
+        "Never tell the person whether to sign or not; explain the terms and the risks.",
+        "Do not give investment or tax advice.",
+    ],
     "role": (
         "You are an expert in consumer finance contracts such as loan agreements, "
         "credit card terms and insurance policies. You help ordinary people understand "

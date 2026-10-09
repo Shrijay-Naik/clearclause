@@ -15,7 +15,23 @@ MODEL = os.getenv("LLM_MODEL", "openai/gpt-oss-120b")
 # Keeps us within free-tier limits. We'll handle long documents properly later.
 MAX_CHARS = 20000
 
-# __EXAMPLE__ and __READER__ are filled in from the domain config
+# Optional result sections a domain can switch on with "extra_sections".
+# If you add one here, also add its name to KNOWN_SECTIONS in domains/__init__.py
+EXTRA_SECTIONS = {
+    "action_items": {
+        "shape": '"action_items": [{"what": "something the person must do or be aware of", "when": "the deadline, date or time limit exactly as written in the document, or Not stated"}]',
+        "rule": "For action_items, copy every date and time limit exactly as written. Never calculate or guess a date. Use an empty list if there are none.",
+    },
+    "questions_to_ask": {
+        "shape": '"questions_to_ask": ["a specific question the person should ask before agreeing, based on this document"]',
+        "rule": "For questions_to_ask, give 3 to 6 specific, practical questions.",
+    },
+    "missing": {
+        "shape": '"missing": ["something normally found in this kind of document that is NOT mentioned in it"]',
+        "rule": "For missing, list at most 5 items, and only things that are genuinely absent from the document.",
+    },
+}
+
 OUTPUT_FORMAT = """
 Respond with ONLY valid JSON in exactly this shape:
 {
@@ -30,22 +46,36 @@ Respond with ONLY valid JSON in exactly this shape:
       "severity": "high, medium or low",
       "why_risky": "why this could hurt the __READER__",
       "plain_english": "what the clause actually means in simple words",
-      "suggestion": "what the __READER__ could ask for or check before agreeing"
+      "suggestion": "what the __READER__ could ask for or check next"
     }
-  ]
+  ]__EXTRA_SHAPE__
 }
 Order risky_clauses from most to least severe. Only use information from the document.
 If something is not in the document, do not invent it.
 Use the same currency symbols as the document. Never assume a currency that is not written there.
+__EXTRA_RULES__
 """
+
+
+def build_output_format(domain: dict) -> str:
+    names = domain.get("extra_sections", [])
+    shape = "".join(",\n  " + EXTRA_SECTIONS[n]["shape"] for n in names)
+    rules = "\n".join(EXTRA_SECTIONS[n]["rule"] for n in names)
+    return (
+        OUTPUT_FORMAT.replace("__EXAMPLE__", domain["example_document_type"])
+        .replace("__READER__", domain["reader"])
+        .replace("__EXTRA_SHAPE__", shape)
+        .replace("__EXTRA_RULES__", rules)
+    )
+
+
+def guardrail_text(domain: dict) -> str:
+    return "\n".join(f"- {g}" for g in domain["guardrails"])
 
 
 def analyze_document(text: str, domain: dict) -> dict:
     checklist = "\n".join(f"- {item}" for item in domain["risk_checklist"])
     key_terms = ", ".join(domain["key_term_hints"])
-    output_format = OUTPUT_FORMAT.replace(
-        "__EXAMPLE__", domain["example_document_type"]
-    ).replace("__READER__", domain["reader"])
 
     system_prompt = (
         f"{domain['role']}\n\n"
@@ -54,8 +84,9 @@ def analyze_document(text: str, domain: dict) -> dict:
         "not professional advice.\n\n"
         f"The person reading your explanation is the {domain['reader']}.\n"
         f"Key terms worth extracting when present: {key_terms}.\n\n"
+        f"Rules you must always follow:\n{guardrail_text(domain)}\n\n"
         f"Pay special attention to these risks:\n{checklist}\n"
-        f"{output_format}"
+        f"{build_output_format(domain)}"
     )
 
     response = client.chat.completions.create(
@@ -85,7 +116,8 @@ def chat_with_document(text: str, domain: dict, history: list, question: str) ->
         "- Use the same currency symbol as the document. If the document shows none, "
         "do not assume one; write plain numbers.\n"
         "- You are not a lawyer, doctor or financial advisor; this is general "
-        "information, not professional advice.\n\n"
+        "information, not professional advice.\n"
+        f"{guardrail_text(domain)}\n\n"
         f"DOCUMENT:\n{text[:MAX_CHARS]}"
     )
 

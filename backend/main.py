@@ -53,13 +53,15 @@ def list_domains():
                 "name": d["name"],
                 "description": d["description"],
                 "accepts": d["accepts"],
-                "chat_suggestions": d["chat_suggestions"],
                 "disclaimer": d["disclaimer"],
+                "upload_warning": d["upload_warning"],
+                "features": d["features"],
+                "sections": d["sections"],
+                "chat_suggestions": d.get("chat_suggestions", []),
             }
             for d in DOMAINS.values()
         ]
     }
-
 # ---------- Accounts ----------
 
 class SignupRequest(BaseModel):
@@ -242,7 +244,6 @@ class ChatRequest(BaseModel):
     question: str
     history: list[Message] = []
 
-
 @app.post("/api/chat")
 def chat(
     req: ChatRequest,
@@ -250,6 +251,11 @@ def chat(
     db: Session = Depends(get_db),
 ):
     doc = get_own_document(db, req.document_id, user)
+
+    if not DOMAINS[doc.domain]["features"].get("chat", True):
+        raise HTTPException(
+            status_code=400, detail="Chat is not available for this type of document."
+        )
 
     try:
         answer = chat_with_document(
@@ -259,8 +265,8 @@ def chat(
             req.question,
         )
     except Exception as e:
-                print("AI error:", e)  # visible in the server logs only
-                raise HTTPException(
+        print("AI error:", e)  # visible in the server logs only
+        raise HTTPException(
             status_code=502,
             detail="The AI service is busy or unavailable. Please try again in a moment.",
         )

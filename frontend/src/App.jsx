@@ -121,6 +121,7 @@ export default function App() {
   }
 
   const currentDomain = domains.find((d) => d.id === domain);
+
   const statusText = {
     checking: "Connecting…",
     ok: "Backend connected",
@@ -176,7 +177,7 @@ export default function App() {
         </header>
 
         {!user ? (
-                    <AuthScreen
+          <AuthScreen
             onAuth={handleAuth}
             onOpenPrivacy={() => setShowPrivacy(true)}
           />
@@ -196,7 +197,7 @@ export default function App() {
                 Understand what you sign, <em>in plain English.</em>
               </h1>
               <p>
-                                Upload a contract or legal document. Get a clear summary, the
+                Upload a contract or legal document. Get a clear summary, the
                 risky clauses flagged, and answers to your questions.
               </p>
 
@@ -214,20 +215,24 @@ export default function App() {
             </section>
 
             <section className="upload-area">
-                            {currentDomain && (
+              {currentDomain && (
                 <p className="domain-note">
                   <strong>{currentDomain.name}</strong> works best with:{" "}
                   {currentDomain.accepts}
                 </p>
               )}
+              {currentDomain?.upload_warning && (
+                <div className="warn-box">{currentDomain.upload_warning}</div>
+              )}
+
               {loading ? <Loading /> : <UploadZone onFile={handleFile} disabled={loading} />}
               {error && <div className="error-box">{error}</div>}
-                            <p className="upload-note">
+              <p className="upload-note">
                 Your file is sent to an AI service for analysis. Please don't
                 upload documents containing ID or bank account numbers.
               </p>
             </section>
-                    </>
+          </>
         )}
 
         <Footer onOpenPrivacy={() => setShowPrivacy(true)} />
