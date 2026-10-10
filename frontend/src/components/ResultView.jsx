@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Chat from "./Chat";
+import { apiFetch } from "../api"; 
 
 const ORDER = { high: 0, medium: 1, low: 2 };
 
@@ -45,8 +46,52 @@ function RiskCard({ item, defaultOpen }) {
     </div>
   );
 }
+function DomainBanner({ result, domainInfo, onUpdate }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const check = result.domain_check;
 
-export default function ResultView({ result, onReset, domainInfo }) {
+  if (!check || check.matches) return null;
+
+  async function reanalyse() {
+    setBusy(true);
+    setError("");
+    try {
+      const data = await apiFetch(`/api/documents/${result.document_id}/reanalyze`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain: check.detected }),
+      });
+      onUpdate(data);
+    } catch (e) {
+      setError(e.message);
+      setBusy(false);
+    }
+  }
+
+  const current = domainInfo?.name || "the selected";
+
+  return (
+    <div className="mismatch">
+      <div>
+        <strong>This may be the wrong category</strong>
+        <p>
+          {check.detected_name
+            ? `This looks like a ${check.detected_name} document, but it was analysed as ${current}. The results may be less accurate.`
+            : `This doesn't look like a typical ${current} document, so the results may be less useful.`}
+        </p>
+        {error && <p className="mismatch-error">{error}</p>}
+      </div>
+      {check.detected_name && (
+        <button className="btn" onClick={reanalyse} disabled={busy}>
+          {busy ? "Re-analysing…" : `Re-analyse as ${check.detected_name}`}
+        </button>
+      )}
+    </div>
+  );
+}
+
+export default function ResultView({ result, onReset, domainInfo, onUpdate }) {
   const a = result.analysis;
   const sections = domainInfo?.sections || {};
   const title = (key, fallback) => sections[key]?.title || fallback;
@@ -78,7 +123,7 @@ export default function ResultView({ result, onReset, domainInfo }) {
           ← New document
         </button>
       </div>
-
+      <DomainBanner result={result} domainInfo={domainInfo} onUpdate={onUpdate} />
       <section className="card summary">
         <h3 className="section-title">The short version</h3>
         <p className="summary-text">{a.summary}</p>
@@ -184,6 +229,7 @@ export default function ResultView({ result, onReset, domainInfo }) {
       {showChat && (
         <div className="chat-wrap">
           <Chat
+            key={result.domain}
             documentId={result.document_id}
             suggestions={domainInfo?.chat_suggestions}
           />

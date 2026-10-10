@@ -37,6 +37,49 @@ app.add_middleware(
 MAX_SIZE_MB = 10
 
 
+# ---------- Helpers ----------
+
+def doc_payload(doc: models.Document) -> dict:
+    """The shape of a document as sent to the browser, including the category check."""
+    domain = DOMAINS[doc.domain]
+
+    detected = str(doc.analysis.get("detected_domain") or "").strip().lower()
+    check = {"matches": True, "detected": None, "detected_name": None}
+    if detected in DOMAINS and detected != doc.domain:
+        check = {
+            "matches": False,
+            "detected": detected,
+            "detected_name": DOMAINS[detected]["name"],
+        }
+    elif detected == "other":
+        check["matches"] = False
+
+    return {
+        "document_id": doc.id,
+        "filename": doc.filename,
+        "pages": doc.pages,
+        "domain": doc.domain,
+        "analysis": doc.analysis,
+        "glossary": find_glossary(doc.text, domain),
+        "domain_check": check,
+    }
+
+
+def get_own_document(db: Session, document_id: str, user: models.User) -> models.Document:
+    """Finds a document, but only if it belongs to this user."""
+    doc = db.get(models.Document, document_id)
+    if not doc or doc.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Document not found.")
+    return doc
+
+
+def ai_unavailable() -> HTTPException:
+    return HTTPException(
+        status_code=502,
+        detail="The AI service is busy or unavailable. Please try again in a moment.",
+    )
+
+
 # ---------- Public endpoints ----------
 
 @app.get("/")
@@ -62,6 +105,8 @@ def list_domains():
             for d in DOMAINS.values()
         ]
     }
+
+
 # ---------- Accounts ----------
 
 class SignupRequest(BaseModel):
@@ -143,13 +188,10 @@ async def analyze(
         raise HTTPException(status_code=422, detail="No text found in this PDF.")
 
     try:
-        analysis = analyze_document(result["text"], DOMAINS[domain])
+        analysis = analyze_document(result["text"], DOMAINS[domain], DOMAINS)
     except Exception as e:
-                print("AI error:", e)  # visible in the server logs only
-                raise HTTPException(
-            status_code=502,
-            detail="The AI service is busy or unavailable. Please try again in a moment.",
-        )
+        print("AI error:", e)  # visible in the server logs only
+        raise ai_unavailable()
 
     doc = models.Document(
         id=uuid.uuid4().hex,
@@ -163,14 +205,7 @@ async def analyze(
     db.add(doc)
     db.commit()
 
-    return {
-        "document_id": doc.id,
-        "filename": doc.filename,
-        "pages": doc.pages,
-        "domain": doc.domain,
-        "analysis": doc.analysis,
-        "glossary": find_glossary(doc.text, DOMAINS[doc.domain]),
-    }
+    return doc_payload(doc)
 
 
 @app.get("/api/documents")
@@ -197,29 +232,13 @@ def list_documents(
     }
 
 
-def get_own_document(db: Session, document_id: str, user: models.User) -> models.Document:
-    """Finds a document, but only if it belongs to this user."""
-    doc = db.get(models.Document, document_id)
-    if not doc or doc.user_id != user.id:
-        raise HTTPException(status_code=404, detail="Document not found.")
-    return doc
-
-
 @app.get("/api/documents/{document_id}")
 def get_document(
     document_id: str,
     user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    doc = get_own_document(db, document_id, user)
-    return {
-        "document_id": doc.id,
-        "filename": doc.filename,
-        "pages": doc.pages,
-        "domain": doc.domain,
-        "analysis": doc.analysis,
-        "glossary": find_glossary(doc.text, DOMAINS[doc.domain]),
-    }
+    return doc_payload(get_own_document(db, document_id, user))
 
 
 @app.delete("/api/documents/{document_id}")
@@ -234,6 +253,39 @@ def delete_document(
     return {"deleted": True}
 
 
+class ReanalyzeRequest(BaseModel):
+    domain: str
+
+
+@app.post("/api/documents/{document_id}/reanalyze")
+def reanalyze(
+    document_id: str,
+    req: ReanalyzeRequest,
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Re-runs the analysis on the saved text under a different domain."""
+    doc = get_own_document(db, document_id, user)
+
+    if req.domain not in DOMAINS:
+        raise HTTPException(status_code=400, detail=f"Unknown domain: {req.domain}")
+
+    try:
+        analysis = analyze_document(doc.text, DOMAINS[req.domain], DOMAINS)
+    except Exception as e:
+        print("AI error:", e)
+        raise ai_unavailable()
+
+    # The person chose this domain explicitly, so their choice wins
+    analysis["detected_domain"] = req.domain
+
+    doc.domain = req.domain
+    doc.analysis = analysis
+    db.commit()
+
+    return doc_payload(doc)
+
+
 class Message(BaseModel):
     role: Literal["user", "assistant"]
     content: str
@@ -243,6 +295,7 @@ class ChatRequest(BaseModel):
     document_id: str
     question: str
     history: list[Message] = []
+
 
 @app.post("/api/chat")
 def chat(
@@ -265,10 +318,7 @@ def chat(
             req.question,
         )
     except Exception as e:
-        print("AI error:", e)  # visible in the server logs only
-        raise HTTPException(
-            status_code=502,
-            detail="The AI service is busy or unavailable. Please try again in a moment.",
-        )
+        print("AI error:", e)
+        raise ai_unavailable()
 
     return {"answer": answer}

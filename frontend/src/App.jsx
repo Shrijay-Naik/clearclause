@@ -187,6 +187,7 @@ export default function App() {
           <ResultView
             result={result}
             onReset={goNew}
+            onUpdate={setResult}
             domainInfo={domains.find((d) => d.id === result.domain)}
           />
         ) : (

@@ -36,6 +36,7 @@ OUTPUT_FORMAT = """
 Respond with ONLY valid JSON in exactly this shape:
 {
   "document_type": "short name of the document, e.g. __EXAMPLE__",
+  "detected_domain": "the category this document actually belongs to, judged only from its content. Exactly one of: __CHOICES__",
   "summary": "3 to 5 sentences in simple language a teenager could understand",
   "key_terms": [
     {"label": "short label", "value": "what the document says about it"}
@@ -53,16 +54,25 @@ Respond with ONLY valid JSON in exactly this shape:
 Order risky_clauses from most to least severe. Only use information from the document.
 If something is not in the document, do not invent it.
 Use the same currency symbols as the document. Never assume a currency that is not written there.
+Fill in detected_domain honestly from the document's content, even if it differs from the category you were asked to analyse it under.
 __EXTRA_RULES__
 """
 
 
-def build_output_format(domain: dict) -> str:
+def domain_choices(all_domains: dict | None, domain: dict) -> str:
+    pool = all_domains or {domain["id"]: domain}
+    parts = [f'"{d["id"]}" ({d["accepts"]})' for d in pool.values()]
+    parts.append('"other" (none of these)')
+    return "; ".join(parts)
+
+
+def build_output_format(domain: dict, all_domains: dict | None = None) -> str:
     names = domain.get("extra_sections", [])
     shape = "".join(",\n  " + EXTRA_SECTIONS[n]["shape"] for n in names)
     rules = "\n".join(EXTRA_SECTIONS[n]["rule"] for n in names)
     return (
         OUTPUT_FORMAT.replace("__EXAMPLE__", domain["example_document_type"])
+        .replace("__CHOICES__", domain_choices(all_domains, domain))
         .replace("__READER__", domain["reader"])
         .replace("__EXTRA_SHAPE__", shape)
         .replace("__EXTRA_RULES__", rules)
@@ -73,7 +83,7 @@ def guardrail_text(domain: dict) -> str:
     return "\n".join(f"- {g}" for g in domain["guardrails"])
 
 
-def analyze_document(text: str, domain: dict) -> dict:
+def analyze_document(text: str, domain: dict, all_domains: dict | None = None) -> dict:
     checklist = "\n".join(f"- {item}" for item in domain["risk_checklist"])
     key_terms = ", ".join(domain["key_term_hints"])
 
@@ -86,7 +96,7 @@ def analyze_document(text: str, domain: dict) -> dict:
         f"Key terms worth extracting when present: {key_terms}.\n\n"
         f"Rules you must always follow:\n{guardrail_text(domain)}\n\n"
         f"Pay special attention to these risks:\n{checklist}\n"
-        f"{build_output_format(domain)}"
+        f"{build_output_format(domain, all_domains)}"
     )
 
     response = client.chat.completions.create(

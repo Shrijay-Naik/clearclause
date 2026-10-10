@@ -1139,3 +1139,34 @@ body {
     width: auto;
   }
 }
+/* Wrong-category banner */
+.mismatch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+  padding: 18px 22px;
+  border-radius: var(--radius);
+  background: #fcf1e0;
+  border: 1px solid #f0dcb6;
+  border-left: 4px solid var(--medium);
+}
+.mismatch strong {
+  color: #7a4a05;
+}
+.mismatch p {
+  margin: 4px 0 0;
+  color: #7a4a05;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  max-width: 560px;
+}
+.mismatch .btn {
+  margin-top: 0;
+  white-space: nowrap;
+}
+.mismatch .mismatch-error {
+  color: var(--high);
+}
