@@ -102,7 +102,7 @@ export default function ResultView({ result, onReset, domainInfo, onUpdate }) {
   const glossary = result.glossary || [];
   const actionItems = a.action_items || [];
   const questions = a.questions_to_ask || [];
-  const missing = a.missing || [];
+  const missing = a.coverage?.partial ? [] : a.missing || [];
   const risks = [...(a.risky_clauses || [])].sort(
     (x, y) => ORDER[normalize(x.severity)] - ORDER[normalize(y.severity)]
   );

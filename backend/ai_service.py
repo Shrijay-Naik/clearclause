@@ -113,6 +113,17 @@ def _run_analysis(excerpt: str, partial: bool, domain: dict, all_domains) -> dic
     checklist = "\n".join(f"- {item}" for item in domain["risk_checklist"])
     key_terms = ", ".join(domain["key_term_hints"])
 
+    # When the AI sees only excerpts it cannot know what is truly missing,
+    # so we don't ask for the "missing" section at all.
+    prompt_domain = domain
+    if partial:
+        prompt_domain = {
+            **domain,
+            "extra_sections": [
+                s for s in domain.get("extra_sections", []) if s != "missing"
+            ],
+        }
+
     system_prompt = (
         f"{domain['role']}\n\n"
         "Explain everything for someone with no legal, medical or financial background. "
@@ -123,7 +134,7 @@ def _run_analysis(excerpt: str, partial: bool, domain: dict, all_domains) -> dic
         f"Rules you must always follow:\n{guardrail_text(domain)}\n\n"
         f"Pay special attention to these risks:\n{checklist}\n"
         f"{PARTIAL_ANALYSIS_NOTE if partial else ''}"
-        f"{build_output_format(domain, all_domains)}"
+        f"{build_output_format(prompt_domain, all_domains)}"
     )
 
     response = client.chat.completions.create(
@@ -139,6 +150,10 @@ def _run_analysis(excerpt: str, partial: bool, domain: dict, all_domains) -> dic
     analysis = json.loads(response.choices[0].message.content)
     if not isinstance(analysis, dict):
         raise ValueError("The AI returned an unexpected format.")
+
+    if partial:
+        analysis["missing"] = []  # enforced here, in case the AI adds it anyway
+
     return analysis
 
 
