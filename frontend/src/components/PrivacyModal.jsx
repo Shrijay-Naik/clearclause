@@ -44,7 +44,14 @@ export default function PrivacyModal({ onClose }) {
           your questions, the document text is sent to a third-party AI service
           (Groq). The app does not add extra encryption to stored document text.
         </p>
-
+        <h4>Scans and photos</h4>
+        <p>
+          Photos are read on your own device and are never uploaded. A scanned PDF
+          is first sent to our server to check for typed text, and is discarded
+          when none is found. In both cases only the text read from the image is
+          sent for analysis. The reading engine is downloaded from the jsDelivr
+          network the first time you use it.
+        </p>
         <h4>Your control</h4>
         <p>
           You can delete any document at any time from <em>My documents</em>.

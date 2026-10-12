@@ -35,6 +35,7 @@ app.add_middleware(
 )
 
 MAX_SIZE_MB = 10
+MAX_TEXT_CHARS = 200_000  # the most text we accept from a scan read in the browser
 
 
 # ---------- Helpers ----------
@@ -78,6 +79,39 @@ def ai_unavailable() -> HTTPException:
         status_code=502,
         detail="The AI service is busy or unavailable. Please try again in a moment.",
     )
+
+
+def analyse_and_save(
+    db: Session,
+    user: models.User,
+    text: str,
+    pages: int,
+    filename: str,
+    domain: str,
+    ocr: bool = False,
+) -> dict:
+    """Runs the AI analysis, saves the document, and returns it for the browser."""
+    try:
+        analysis = analyze_document(text, DOMAINS[domain], DOMAINS, ocr=ocr)
+    except Exception as e:
+        print("AI error:", e)  # visible in the server logs only
+        raise ai_unavailable()
+
+    if ocr:
+        analysis["ocr"] = True  # lets the interface warn that the text came from a scan
+
+    doc = models.Document(
+        id=uuid.uuid4().hex,
+        user_id=user.id,
+        filename=filename,
+        domain=domain,
+        pages=pages,
+        text=text,
+        analysis=analysis,
+    )
+    db.add(doc)
+    db.commit()
+    return doc_payload(doc)
 
 
 # ---------- Public endpoints ----------
@@ -185,27 +219,44 @@ async def analyze(
         raise HTTPException(status_code=422, detail="Could not read this PDF.")
 
     if not result["text"]:
-        raise HTTPException(status_code=422, detail="No text found in this PDF.")
+        # The website sees the word "scan" in this message and offers to read it with OCR
+        raise HTTPException(
+            status_code=422,
+            detail="No selectable text found. This PDF looks like a scan.",
+        )
 
-    try:
-        analysis = analyze_document(result["text"], DOMAINS[domain], DOMAINS)
-    except Exception as e:
-        print("AI error:", e)  # visible in the server logs only
-        raise ai_unavailable()
-
-    doc = models.Document(
-        id=uuid.uuid4().hex,
-        user_id=user.id,
-        filename=file.filename,
-        domain=domain,
-        pages=result["pages"],
-        text=result["text"],
-        analysis=analysis,
+    return analyse_and_save(
+        db, user, result["text"], result["pages"], file.filename, domain
     )
-    db.add(doc)
-    db.commit()
 
-    return doc_payload(doc)
+
+class TextAnalyzeRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=MAX_TEXT_CHARS)
+    filename: str = Field(min_length=1, max_length=255)
+    pages: int = Field(ge=1, le=100)
+    domain: str = "finance"
+
+
+@app.post("/api/analyze-text")
+def analyze_text(
+    req: TextAnalyzeRequest,
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Analyses text that the browser read from a scan or a photo (OCR)."""
+    if req.domain not in DOMAINS:
+        raise HTTPException(status_code=400, detail=f"Unknown domain: {req.domain}")
+
+    text = req.text.strip()
+    if len(text) < 40:
+        raise HTTPException(
+            status_code=422,
+            detail="Could not read enough text from the scan. Try a clearer scan or photo.",
+        )
+
+    return analyse_and_save(
+        db, user, text, req.pages, req.filename.strip(), req.domain, ocr=True
+    )
 
 
 @app.get("/api/documents")
@@ -270,14 +321,17 @@ def reanalyze(
     if req.domain not in DOMAINS:
         raise HTTPException(status_code=400, detail=f"Unknown domain: {req.domain}")
 
+    was_ocr = bool(doc.analysis.get("ocr"))
     try:
-        analysis = analyze_document(doc.text, DOMAINS[req.domain], DOMAINS)
+        analysis = analyze_document(doc.text, DOMAINS[req.domain], DOMAINS, ocr=was_ocr)
     except Exception as e:
         print("AI error:", e)
         raise ai_unavailable()
 
     # The person chose this domain explicitly, so their choice wins
     analysis["detected_domain"] = req.domain
+    if was_ocr:
+        analysis["ocr"] = True
 
     doc.domain = req.domain
     doc.analysis = analysis

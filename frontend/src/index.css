@@ -1187,3 +1187,42 @@ body {
   font-size: 0.92rem;
   line-height: 1.55;
 }
+/* Scan reader */
+.ocr {
+  text-align: center;
+  padding: 48px 32px;
+}
+.ocr h3 {
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 1.4rem;
+  margin: 0 0 8px;
+}
+.ocr p {
+  margin: 0 auto 18px;
+  max-width: 460px;
+  color: var(--muted);
+}
+.bar {
+  height: 8px;
+  max-width: 420px;
+  margin: 0 auto 12px;
+  background: var(--accent-soft);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+.ocr .ocr-label {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  font-size: 0.92rem;
+}
+.ocr .btn {
+  margin-top: 4px;
+}

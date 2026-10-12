@@ -1,12 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import UploadZone from "./components/UploadZone";
 import Loading from "./components/Loading";
+import OcrProgress from "./components/OcrProgress";
 import ResultView from "./components/ResultView";
 import AuthScreen from "./components/AuthScreen";
 import History from "./components/History";
 import WakeUp from "./components/WakeUp";
 import Footer from "./components/Footer";
 import PrivacyModal from "./components/PrivacyModal";
+import { ocrFile } from "./ocr";
 import {
   apiFetch,
   clearToken,
@@ -25,9 +27,12 @@ export default function App() {
   const [domain, setDomain] = useState("finance");
   const [status, setStatus] = useState("checking"); // checking | ok | bad
   const [loading, setLoading] = useState(false);
+  const [scan, setScan] = useState(null); // null, or the progress of reading a scan
+  const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
   const [showPrivacy, setShowPrivacy] = useState(false);
+  const cancelRef = useRef(false);
 
   function logout() {
     clearToken();
@@ -82,15 +87,52 @@ export default function App() {
     setView("home");
   }
 
+  // Reads a scan or photo in the browser (OCR), then sends only the text for analysis
+  async function readScan(file) {
+    cancelRef.current = false;
+    setCancelling(false);
+    setScan({ stage: "loading" });
+    try {
+      const { text, pages } = await ocrFile(file, setScan, () => cancelRef.current);
+
+      setScan({ stage: "analysing" });
+      const data = await apiFetch("/api/analyze-text", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, filename: file.name, pages, domain }),
+      });
+      setResult(data);
+    } catch (e) {
+      if (e?.name !== "OcrCancelled") {
+        setError(e?.message || "Could not read this file.");
+      }
+    } finally {
+      setScan(null);
+      setCancelling(false);
+    }
+  }
+
   async function handleFile(file) {
     setError("");
 
-    if (!file.name.toLowerCase().endsWith(".pdf")) {
-      setError("Please choose a PDF file.");
+    const name = file.name.toLowerCase();
+    const isPdf = file.type === "application/pdf" || name.endsWith(".pdf");
+    const isImage =
+      ["image/png", "image/jpeg", "image/webp"].includes(file.type) ||
+      /\.(png|jpe?g|webp)$/.test(name);
+
+    if (!isPdf && !isImage) {
+      setError("Please choose a PDF, or a PNG or JPG photo.");
       return;
     }
     if (file.size > MAX_MB * 1024 * 1024) {
       setError(`That file is larger than ${MAX_MB} MB.`);
+      return;
+    }
+
+    // Photos go straight to the reader
+    if (isImage) {
+      await readScan(file);
       return;
     }
 
@@ -103,6 +145,12 @@ export default function App() {
       const data = await apiFetch("/api/analyze", { method: "POST", body: form });
       setResult(data);
     } catch (e) {
+      // The server found no typed text: this PDF is a scan, so read it with OCR
+      if (/looks like a scan/i.test(e.message)) {
+        setLoading(false);
+        await readScan(file);
+        return;
+      }
       setError(e.message);
     } finally {
       setLoading(false);
@@ -226,7 +274,25 @@ export default function App() {
                 <div className="warn-box">{currentDomain.upload_warning}</div>
               )}
 
-              {loading ? <Loading /> : <UploadZone onFile={handleFile} disabled={loading} />}
+              {scan ? (
+                scan.stage === "analysing" ? (
+                  <Loading />
+                ) : (
+                  <OcrProgress
+                    progress={scan}
+                    cancelling={cancelling}
+                    onCancel={() => {
+                      cancelRef.current = true;
+                      setCancelling(true);
+                    }}
+                  />
+                )
+              ) : loading ? (
+                <Loading />
+              ) : (
+                <UploadZone onFile={handleFile} disabled={loading} />
+              )}
+
               {error && <div className="error-box">{error}</div>}
               <p className="upload-note">
                 Your file is sent to an AI service for analysis. Please don't

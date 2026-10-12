@@ -123,6 +123,15 @@ export default function ResultView({ result, onReset, domainInfo, onUpdate }) {
           ← New document
         </button>
       </div>
+            {a.ocr && (
+        <div className="coverage">
+          <strong>Read from a scan</strong>
+          <p>
+            The text of this document was read from an image, so some characters
+            may be wrong. Check amounts, percentages and dates against the original.
+          </p>
+        </div>
+      )}
             {a.coverage?.partial && (
         <div className="coverage">
           <strong>Long document</strong>

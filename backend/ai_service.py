@@ -78,6 +78,12 @@ PARTIAL_CHAT_NOTE = (
     "not in the parts shown, say you could not find it in the relevant sections and "
     "suggest checking the full document. Do not say the document does not mention it.\n"
 )
+OCR_NOTE = (
+    "\nNOTE: this text was read from a scanned image by OCR, so it may contain "
+    "misread characters, odd line breaks and wrong digits. Be careful with amounts, "
+    "percentages and dates: if a figure looks unclear or inconsistent, say that it "
+    "looks unclear instead of guessing.\n"
+)
 
 
 def domain_choices(all_domains: dict | None, domain: dict) -> str:
@@ -109,7 +115,9 @@ def _is_too_large(e: Exception) -> bool:
     return getattr(e, "status_code", None) == 413
 
 
-def _run_analysis(excerpt: str, partial: bool, domain: dict, all_domains) -> dict:
+def _run_analysis(
+    excerpt: str, partial: bool, domain: dict, all_domains, ocr: bool = False
+) -> dict:
     checklist = "\n".join(f"- {item}" for item in domain["risk_checklist"])
     key_terms = ", ".join(domain["key_term_hints"])
 
@@ -134,6 +142,7 @@ def _run_analysis(excerpt: str, partial: bool, domain: dict, all_domains) -> dic
         f"Rules you must always follow:\n{guardrail_text(domain)}\n\n"
         f"Pay special attention to these risks:\n{checklist}\n"
         f"{PARTIAL_ANALYSIS_NOTE if partial else ''}"
+        f"{OCR_NOTE if ocr else ''}"
         f"{build_output_format(prompt_domain, all_domains)}"
     )
 
@@ -157,14 +166,16 @@ def _run_analysis(excerpt: str, partial: bool, domain: dict, all_domains) -> dic
     return analysis
 
 
-def analyze_document(text: str, domain: dict, all_domains: dict | None = None) -> dict:
+def analyze_document(
+    text: str, domain: dict, all_domains: dict | None = None, ocr: bool = False
+) -> dict:
     budget = ANALYSIS_BUDGET
     query = domain_query(domain)
 
     for attempt in range(2):
         excerpt, share, partial = select_excerpts(text, query, budget)
         try:
-            analysis = _run_analysis(excerpt, partial, domain, all_domains)
+            analysis = _run_analysis(excerpt, partial, domain, all_domains, ocr)
             break
         except Exception as e:
             # Too big for the plan: try once more with half the text
