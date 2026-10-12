@@ -123,6 +123,17 @@ export default function ResultView({ result, onReset, domainInfo, onUpdate }) {
           ← New document
         </button>
       </div>
+            {a.coverage?.partial && (
+        <div className="coverage">
+          <strong>Long document</strong>
+          <p>
+            This document is long, so ClearClause analysed the sections most
+            relevant to {domainInfo?.name || "this domain"} risks (about{" "}
+            {a.coverage.percent}% of the text). Clauses in the other parts may not
+            be covered. The chat searches the whole document for each question.
+          </p>
+        </div>
+      )}
       <DomainBanner result={result} domainInfo={domainInfo} onUpdate={onUpdate} />
       <section className="card summary">
         <h3 className="section-title">The short version</h3>

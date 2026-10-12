@@ -4,16 +4,22 @@ import os
 from dotenv import load_dotenv
 from openai import OpenAI
 
+from retrieval import domain_query, select_excerpts
+
 load_dotenv()
 
 client = OpenAI(
     api_key=os.getenv("GROQ_API_KEY"),
     base_url="https://api.groq.com/openai/v1",
+    max_retries=3,  # the library waits and retries when we hit a rate limit
+    timeout=90,
 )
 MODEL = os.getenv("LLM_MODEL", "openai/gpt-oss-120b")
 
-# Keeps us within free-tier limits. We'll handle long documents properly later.
-MAX_CHARS = 20000
+# How much document text we send per request. Groq's free plan allows about
+# 8,000 tokens per minute (input + output), so these are kept modest.
+ANALYSIS_BUDGET = 12000
+CHAT_BUDGET = 9000
 
 # Optional result sections a domain can switch on with "extra_sections".
 # If you add one here, also add its name to KNOWN_SECTIONS in domains/__init__.py
@@ -58,6 +64,21 @@ Fill in detected_domain honestly from the document's content, even if it differs
 __EXTRA_RULES__
 """
 
+PARTIAL_ANALYSIS_NOTE = (
+    "\nIMPORTANT: this is a long document, so you are shown only selected excerpts. "
+    "Parts marked [... omitted ...] were not shown to you. Base everything only on the "
+    "excerpts. Never say that something is missing or not mentioned in the document, "
+    "because it may be in the omitted parts, and return an empty list for any "
+    '"missing" field.\n'
+)
+
+PARTIAL_CHAT_NOTE = (
+    "\nThis is a long document. You are shown only the parts that look most relevant "
+    "to the question; parts marked [... omitted ...] were not shown. If the answer is "
+    "not in the parts shown, say you could not find it in the relevant sections and "
+    "suggest checking the full document. Do not say the document does not mention it.\n"
+)
+
 
 def domain_choices(all_domains: dict | None, domain: dict) -> str:
     pool = all_domains or {domain["id"]: domain}
@@ -83,7 +104,12 @@ def guardrail_text(domain: dict) -> str:
     return "\n".join(f"- {g}" for g in domain["guardrails"])
 
 
-def analyze_document(text: str, domain: dict, all_domains: dict | None = None) -> dict:
+def _is_too_large(e: Exception) -> bool:
+    # HTTP 413 = the request is bigger than the plan allows
+    return getattr(e, "status_code", None) == 413
+
+
+def _run_analysis(excerpt: str, partial: bool, domain: dict, all_domains) -> dict:
     checklist = "\n".join(f"- {item}" for item in domain["risk_checklist"])
     key_terms = ", ".join(domain["key_term_hints"])
 
@@ -96,6 +122,7 @@ def analyze_document(text: str, domain: dict, all_domains: dict | None = None) -
         f"Key terms worth extracting when present: {key_terms}.\n\n"
         f"Rules you must always follow:\n{guardrail_text(domain)}\n\n"
         f"Pay special attention to these risks:\n{checklist}\n"
+        f"{PARTIAL_ANALYSIS_NOTE if partial else ''}"
         f"{build_output_format(domain, all_domains)}"
     )
 
@@ -105,39 +132,82 @@ def analyze_document(text: str, domain: dict, all_domains: dict | None = None) -
         response_format={"type": "json_object"},
         messages=[
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"Document:\n\n{text[:MAX_CHARS]}"},
+            {"role": "user", "content": f"Document:\n\n{excerpt}"},
         ],
     )
 
-    return json.loads(response.choices[0].message.content)
+    analysis = json.loads(response.choices[0].message.content)
+    if not isinstance(analysis, dict):
+        raise ValueError("The AI returned an unexpected format.")
+    return analysis
+
+
+def analyze_document(text: str, domain: dict, all_domains: dict | None = None) -> dict:
+    budget = ANALYSIS_BUDGET
+    query = domain_query(domain)
+
+    for attempt in range(2):
+        excerpt, share, partial = select_excerpts(text, query, budget)
+        try:
+            analysis = _run_analysis(excerpt, partial, domain, all_domains)
+            break
+        except Exception as e:
+            # Too big for the plan: try once more with half the text
+            if attempt == 0 and _is_too_large(e):
+                budget //= 2
+                continue
+            raise
+
+    # Saved with the analysis, so the interface can tell the user what was covered
+    analysis["coverage"] = {
+        "partial": partial,
+        "percent": round(share * 100),
+        "total_chars": len(text),
+    }
+    return analysis
 
 
 def chat_with_document(text: str, domain: dict, history: list, question: str) -> str:
-    system_prompt = (
-        f"{domain['role']}\n\n"
-        f"The person asking is the {domain['reader']}. "
-        "You are answering questions about the document below.\n"
-        "Rules:\n"
-        "- Answer ONLY using the document. If the answer is not in it, say so clearly "
-        "and do not guess.\n"
-        "- Use simple language a teenager could understand.\n"
-        "- Mention the relevant clause or section number when you can.\n"
-        "- Keep answers short, and use a quick example with numbers when it helps.\n"
-        "- Use the same currency symbol as the document. If the document shows none, "
-        "do not assume one; write plain numbers.\n"
-        "- You are not a lawyer, doctor or financial advisor; this is general "
-        "information, not professional advice.\n"
-        f"{guardrail_text(domain)}\n\n"
-        f"DOCUMENT:\n{text[:MAX_CHARS]}"
-    )
+    # Follow-up questions ("and if I'm two months late?") need the previous question too
+    last_user = next((m["content"] for m in reversed(history) if m["role"] == "user"), "")
+    query = f"{question} {last_user}"
+    budget = CHAT_BUDGET
 
-    messages = [{"role": "system", "content": system_prompt}]
-    messages += history[-10:]  # only the last 10 messages, to stay within limits
-    messages.append({"role": "user", "content": question})
+    for attempt in range(2):
+        excerpt, _share, partial = select_excerpts(text, query, budget, keep_start=False)
 
-    response = client.chat.completions.create(
-        model=MODEL,
-        temperature=0.3,
-        messages=messages,
-    )
-    return response.choices[0].message.content
+        system_prompt = (
+            f"{domain['role']}\n\n"
+            f"The person asking is the {domain['reader']}. "
+            "You are answering questions about the document below.\n"
+            "Rules:\n"
+            "- Answer ONLY using the document. If the answer is not in it, say so clearly "
+            "and do not guess.\n"
+            "- Use simple language a teenager could understand.\n"
+            "- Mention the relevant clause or section number when you can.\n"
+            "- Keep answers short, and use a quick example with numbers when it helps.\n"
+            "- Use the same currency symbol as the document. If the document shows none, "
+            "do not assume one; write plain numbers.\n"
+            "- You are not a lawyer, doctor or financial advisor; this is general "
+            "information, not professional advice.\n"
+            f"{guardrail_text(domain)}\n"
+            f"{PARTIAL_CHAT_NOTE if partial else ''}\n"
+            f"DOCUMENT:\n{excerpt}"
+        )
+
+        messages = [{"role": "system", "content": system_prompt}]
+        messages += history[-6:]  # only the most recent messages, to stay within limits
+        messages.append({"role": "user", "content": question})
+
+        try:
+            response = client.chat.completions.create(
+                model=MODEL,
+                temperature=0.3,
+                messages=messages,
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            if attempt == 0 and _is_too_large(e):
+                budget //= 2
+                continue
+            raise
