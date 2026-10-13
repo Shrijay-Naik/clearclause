@@ -45,6 +45,8 @@ Capstone project, VIT-AP University. Project guide: Dr. Karrothu Arvind.
 
 - Four domains: **Finance**, **HR & Employment**, **Medical**, and **Court & Legal Notices**
 - Upload a PDF (text-based, up to 10 MB)
+- Long documents (up to 100 pages): the sections most relevant to each domain's risks are found with keyword retrieval and analysed, and the chat retrieves the best-matching sections for each question
+- Scanned PDFs and photos of printed pages: read on the user's device with OCR, and only the extracted text is sent for analysis
 - Plain-language summary and key terms
 - Risky clauses ranked high, medium or low, each with a plain-English meaning, why it is risky, and what to ask for
 - Domain-specific sections: "Not mentioned in this document", "Ask HR before you sign", "Ask the insurer or hospital", and "What you need to do, and by when"
@@ -116,6 +118,12 @@ Each domain is one small Python file in `backend/domains/` with a `CONFIG` dicti
 
 To add a domain, create `backend/domains/<name>.py`, import it in `backend/domains/__init__.py` and add it to the list there. A built-in checker reports any missing field when the server starts, and the interface picks up the new domain automatically.
 
+## Long documents and scans
+
+**Long documents.** The AI model has a per-minute token limit on the free tier, so sending every page is not practical. For documents longer than about 4 pages, the text is cut into clause-sized pieces, each piece is scored against the domain's risk checklist, and the best-matching pieces (plus the opening) go to the model in a single call. The interface shows how much of the text was analysed. When the model sees only excerpts, it is told not to claim that anything is "not mentioned". In the chat, the pieces that best match each question are retrieved the same way.
+
+**Scans and photos.** If a PDF has no typed text, or the user uploads a photo, the browser renders each page and reads it with OCR. Photos never leave the device. A scanned PDF is first sent to the server to check for typed text and is discarded when none is found. Only the extracted text is then sent for analysis, and the AI is told the text came from OCR so it treats numbers and dates cautiously.
+
 ## Tech stack
 
 | Layer | Technology |
@@ -127,6 +135,8 @@ To add a domain, create `backend/domains/<name>.py`, import it in `backend/domai
 | Database | SQLite locally, PostgreSQL (Neon) in production, via SQLAlchemy |
 | Auth | bcrypt password hashing, JWT tokens |
 | Hosting | Render (backend and frontend), Neon (database), GitHub |
+| Long documents | Keyword retrieval (BM25 scoring) written in pure Python |
+| Scans and photos | pdf.js and tesseract.js (OCR), running in the browser |
 
 ## API overview
 
@@ -137,6 +147,7 @@ To add a domain, create `backend/domains/<name>.py`, import it in `backend/domai
 | POST | `/api/auth/login` | No | Log in and get a token |
 | GET | `/api/me` | Yes | Current user |
 | POST | `/api/analyze` | Yes | Upload a PDF and get the analysis |
+| POST | `/api/analyze-text` | Yes | Analyse text the browser read from a scan or photo |
 | GET | `/api/documents` | Yes | List your documents |
 | GET | `/api/documents/{id}` | Yes | Open one document |
 | DELETE | `/api/documents/{id}` | Yes | Delete a document |
@@ -224,11 +235,13 @@ clearclause/
 - Secrets live in environment variables and are never committed to the repository
 - Document text is sent to a third-party AI service (Groq) to produce summaries and answers. The app tells users this and asks them not to upload ID or bank account numbers
 - Users can delete their documents at any time
+- Photos are read on the user's device and are never uploaded. The OCR engine is downloaded from the jsDelivr network on first use
 
 ## Limitations
 
-- Scanned PDFs (images of text) are not supported yet
-- Documents longer than about 20,000 characters are truncated
+- Long documents are analysed from the most relevant sections, not every page, and the interface says so
+- Scans and photos: printed English text only (no handwriting or other languages), up to 15 pages, and accuracy depends on image quality
+- Retrieval is keyword-based, so a risky clause that uses unusual wording can be missed
 - Chat history is not saved, only documents and their analyses
 - AI output can be wrong. It is general information, not legal, medical or financial advice
 - The risk checklists and glossaries were drafted for demonstration and have not been reviewed by professionals
@@ -238,8 +251,8 @@ clearclause/
 
 ## Future work
 
-- Retrieval-augmented generation (RAG) for long documents
-- OCR for scanned documents
+- Embedding-based retrieval, and full-coverage analysis of every page (needs a paid AI plan)
+- OCR for other languages and handwriting
 - Review of each domain's checklist and glossary by a subject expert
 - Fine-tuning a smaller open model on clause-to-plain-English pairs
 - Saved chat history, account deletion, and multi-language support
