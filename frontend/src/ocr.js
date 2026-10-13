@@ -57,10 +57,12 @@ export async function ocrFile(file, onProgress, isCancelled) {
   });
 
   const texts = [];
+  let loadingTask = null;
   try {
     if (isPdf) {
       const data = new Uint8Array(await file.arrayBuffer());
-      const pdf = await pdfjs.getDocument({ data }).promise;
+      loadingTask = pdfjs.getDocument({ data });
+      const pdf = await loadingTask.promise;
       total = pdf.numPages;
 
       if (total > MAX_OCR_PAGES) {
@@ -89,7 +91,6 @@ export async function ocrFile(file, onProgress, isCancelled) {
         release(canvas);
         page.cleanup();
       }
-      await pdf.destroy();
     } else {
       report(0);
       const bitmap = await createImageBitmap(file);
@@ -103,7 +104,17 @@ export async function ocrFile(file, onProgress, isCancelled) {
       release(canvas);
     }
   } finally {
-    await worker.terminate();
+    // Cleanup problems must never throw away a result that was read successfully
+    try {
+      await loadingTask?.destroy();
+    } catch {
+      /* ignore */
+    }
+    try {
+      await worker.terminate();
+    } catch {
+      /* ignore */
+    }
   }
 
   if (isCancelled()) throw new OcrCancelled();
