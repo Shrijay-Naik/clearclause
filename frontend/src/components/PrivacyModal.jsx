@@ -57,7 +57,8 @@ export default function PrivacyModal({ onClose }) {
         <p>
           You can delete any document, together with its chat, at any time from{" "}
           <em>My documents</em>, or clear just the chat.
-          Account deletion is not available yet.
+          You can also delete your whole account from the Account page, which
+          removes your documents and chats too.
         </p>
 
         <h4>Please avoid uploading</h4>

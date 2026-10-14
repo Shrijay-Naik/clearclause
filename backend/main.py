@@ -5,7 +5,7 @@ from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 import models
@@ -191,6 +191,33 @@ def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
 @app.get("/api/me")
 def me(user: models.User = Depends(get_current_user)):
     return {"id": user.id, "email": user.email}
+
+
+class DeleteAccountRequest(BaseModel):
+    password: str = Field(min_length=1, max_length=72)
+
+
+@app.post("/api/me/delete")
+def delete_account(
+    req: DeleteAccountRequest,
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Permanently deletes the account, its documents and its chat messages."""
+    # 403, not 401: the website treats a 401 as "your login expired" and logs you out
+    if not verify_password(req.password, user.password_hash):
+        raise HTTPException(status_code=403, detail="Incorrect password.")
+
+    # Chat messages first, then documents, then the user. One transaction: all or nothing.
+    own_documents = select(models.Document.id).where(models.Document.user_id == user.id)
+    db.execute(
+        delete(models.ChatMessage).where(models.ChatMessage.document_id.in_(own_documents))
+    )
+    db.execute(delete(models.Document).where(models.Document.user_id == user.id))
+    db.delete(user)
+    db.commit()
+
+    return {"deleted": True}
 
 
 # ---------- Protected endpoints (login required) ----------

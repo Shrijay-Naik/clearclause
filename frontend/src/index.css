@@ -1254,3 +1254,79 @@ body {
   opacity: 0.5;
   cursor: not-allowed;
 }
+/* Account page */
+.account {
+  padding-bottom: 80px;
+}
+.account .card {
+  margin-bottom: 20px;
+}
+.account-email {
+  font-size: 1.2rem;
+  font-weight: 500;
+  margin: 6px 0 4px;
+}
+.danger-zone {
+  border-color: #f0cdc9;
+}
+.danger-zone .section-title {
+  color: var(--high);
+  margin-bottom: 8px;
+}
+.danger-zone p {
+  color: var(--muted);
+  margin: 0 0 16px;
+  line-height: 1.6;
+}
+.btn.danger {
+  background: var(--high);
+  margin-top: 0;
+}
+.danger-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.danger-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+.danger-form input {
+  font-family: inherit;
+  font-size: 1rem;
+  padding: 13px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  outline: none;
+}
+.danger-form input:focus {
+  border-color: var(--high);
+}
+.danger-form .error-box {
+  margin: 0;
+}
+.danger-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.danger-actions .btn {
+  margin-top: 0;
+}
+
+/* Confirmation message on the login screen */
+.notice-box {
+  margin: 8px 0 0;
+  padding: 14px 18px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid rgba(31, 92, 74, 0.15);
+  font-size: 0.92rem;
+}

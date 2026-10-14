@@ -5,6 +5,7 @@ import OcrProgress from "./components/OcrProgress";
 import ResultView from "./components/ResultView";
 import AuthScreen from "./components/AuthScreen";
 import History from "./components/History";
+import Account from "./components/Account";
 import WakeUp from "./components/WakeUp";
 import Footer from "./components/Footer";
 import PrivacyModal from "./components/PrivacyModal";
@@ -22,7 +23,7 @@ const MAX_MB = 10;
 export default function App() {
   const [user, setUser] = useState(null);
   const [booting, setBooting] = useState(true); // waiting for the backend
-  const [view, setView] = useState("home"); // home | history
+  const [view, setView] = useState("home"); // home | history | account
   const [domains, setDomains] = useState([]);
   const [domain, setDomain] = useState("finance");
   const [status, setStatus] = useState("checking"); // checking | ok | bad
@@ -32,6 +33,7 @@ export default function App() {
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
   const [showPrivacy, setShowPrivacy] = useState(false);
+  const [notice, setNotice] = useState("");
   const cancelRef = useRef(false);
 
   function logout() {
@@ -85,6 +87,13 @@ export default function App() {
     setToken(data.access_token);
     setUser(data.user);
     setView("home");
+    setNotice("");
+  }
+
+  // Called after the server has deleted the account and everything in it
+  function handleDeleted() {
+    logout();
+    setNotice("Your account and all of its data have been deleted.");
   }
 
   // Reads a scan or photo in the browser (OCR), then sends only the text for analysis
@@ -215,7 +224,9 @@ export default function App() {
                 <button className="nav-link" onClick={() => setView("history")}>
                   My documents
                 </button>
-                <span className="user-email">{user.email}</span>
+                <button className="nav-link" onClick={() => setView("account")}>
+                  Account
+                </button>
                 <button className="nav-link" onClick={logout}>
                   Log out
                 </button>
@@ -225,9 +236,18 @@ export default function App() {
         </header>
 
         {!user ? (
-          <AuthScreen
-            onAuth={handleAuth}
-            onOpenPrivacy={() => setShowPrivacy(true)}
+          <>
+            {notice && <div className="notice-box">{notice}</div>}
+            <AuthScreen
+              onAuth={handleAuth}
+              onOpenPrivacy={() => setShowPrivacy(true)}
+            />
+          </>
+        ) : view === "account" ? (
+          <Account
+            user={user}
+            onDeleted={handleDeleted}
+            onBack={() => setView("home")}
           />
         ) : view === "history" ? (
           <History onOpen={openFromHistory} onNew={goNew} />
