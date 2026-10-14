@@ -1226,3 +1226,31 @@ body {
 .ocr .btn {
   margin-top: 4px;
 }
+/* Chat header with the clear button */
+.chat-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+.link-btn {
+  flex-shrink: 0;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--muted);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.link-btn:hover:not(:disabled) {
+  color: var(--high);
+  border-color: var(--high);
+}
+.link-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

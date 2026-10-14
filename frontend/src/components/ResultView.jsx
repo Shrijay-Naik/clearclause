@@ -252,6 +252,7 @@ export default function ResultView({ result, onReset, domainInfo, onUpdate }) {
             key={result.domain}
             documentId={result.document_id}
             suggestions={domainInfo?.chat_suggestions}
+            initialMessages={result.messages}
           />
         </div>
       )}

@@ -31,6 +31,7 @@ export default function PrivacyModal({ onClose }) {
         <h4>What we store</h4>
         <ul>
           <li>Your email address</li>
+          <li>Your chat questions and the answers, saved with each document</li>
           <li>Your password, saved only in scrambled (hashed) form</li>
           <li>
             For each document you upload: the file name, the text extracted from
@@ -54,7 +55,8 @@ export default function PrivacyModal({ onClose }) {
         </p>
         <h4>Your control</h4>
         <p>
-          You can delete any document at any time from <em>My documents</em>.
+          You can delete any document, together with its chat, at any time from{" "}
+          <em>My documents</em>, or clear just the chat.
           Account deletion is not available yet.
         </p>
 

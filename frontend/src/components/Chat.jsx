@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "../api";
+
 const SUGGESTIONS = [
   "What happens if I miss a payment?",
   "Can I repay this early without a fee?",
@@ -18,8 +19,9 @@ function renderInline(text) {
   );
 }
 
-export default function Chat({ documentId, suggestions }) {
-  const [messages, setMessages] = useState([]);
+export default function Chat({ documentId, suggestions, initialMessages }) {
+  // The server keeps the conversation, so earlier messages arrive with the document
+  const [messages, setMessages] = useState(initialMessages || []);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const boxRef = useRef(null);
@@ -35,42 +37,55 @@ export default function Chat({ documentId, suggestions }) {
     const question = text.trim();
     if (!question || busy) return;
 
-    // The AI remembers the conversation because we send the earlier messages along
-    const history = messages
-      .filter((m) => !m.error)
-      .map((m) => ({ role: m.role, content: m.content }));
-
     setMessages((prev) => [...prev, { role: "user", content: question }]);
     setInput("");
     setBusy(true);
 
     try {
-            const data = await apiFetch("/api/chat", {
+      // No history is sent: the server remembers the conversation
+      const data = await apiFetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ document_id: documentId, question, history }),
+        body: JSON.stringify({ document_id: documentId, question }),
       });
-
       setMessages((prev) => [...prev, { role: "assistant", content: data.answer }]);
     } catch (e) {
-      const msg =
-        e.message === "Failed to fetch"
-          ? "Can't reach the backend. Is uvicorn running?"
-          : e.message;
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: msg, error: true },
+        { role: "assistant", content: e.message, error: true },
       ]);
     } finally {
       setBusy(false);
     }
   }
 
+  async function clearChat() {
+    if (!window.confirm("Clear this conversation? This can't be undone.")) return;
+    try {
+      await apiFetch(`/api/documents/${documentId}/messages`, { method: "DELETE" });
+      setMessages([]);
+    } catch (e) {
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: e.message, error: true },
+      ]);
+    }
+  }
+
+  const hasSaved = messages.some((m) => !m.error);
+
   return (
     <div className="chat card">
       <div className="chat-head">
-        <h3 className="section-title">Ask about this document</h3>
-        <p>Answers come only from your contract. If it isn't covered, I'll say so.</p>
+        <div>
+          <h3 className="section-title">Ask about this document</h3>
+          <p>Answers come only from your document. If it isn't covered, I'll say so.</p>
+        </div>
+        {hasSaved && (
+          <button className="link-btn" onClick={clearChat} disabled={busy}>
+            Clear chat
+          </button>
+        )}
       </div>
 
       <div className="chat-box" ref={boxRef}>
@@ -115,6 +130,7 @@ export default function Chat({ documentId, suggestions }) {
           onChange={(e) => setInput(e.target.value)}
           placeholder="Ask anything, e.g. “What if I'm two months late?”"
           disabled={busy}
+          maxLength={2000}
         />
         <button type="submit" className="send" disabled={busy || !input.trim()}>
           Send

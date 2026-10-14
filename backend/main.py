@@ -1,6 +1,5 @@
 import os
 import uuid
-from typing import Literal
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -36,6 +35,7 @@ app.add_middleware(
 
 MAX_SIZE_MB = 10
 MAX_TEXT_CHARS = 200_000  # the most text we accept from a scan read in the browser
+MAX_CHAT_MESSAGES = 200  # saved messages per document (questions + answers)
 
 
 # ---------- Helpers ----------
@@ -63,6 +63,7 @@ def doc_payload(doc: models.Document) -> dict:
         "analysis": doc.analysis,
         "glossary": find_glossary(doc.text, domain),
         "domain_check": check,
+        "messages": [{"role": m.role, "content": m.content} for m in doc.messages],
     }
 
 
@@ -335,20 +336,15 @@ def reanalyze(
 
     doc.domain = req.domain
     doc.analysis = analysis
+    doc.messages.clear()  # a new domain means a new "expert", so start a fresh chat
     db.commit()
 
     return doc_payload(doc)
 
 
-class Message(BaseModel):
-    role: Literal["user", "assistant"]
-    content: str
-
-
 class ChatRequest(BaseModel):
     document_id: str
-    question: str
-    history: list[Message] = []
+    question: str = Field(min_length=1, max_length=2000)
 
 
 @app.post("/api/chat")
@@ -364,15 +360,40 @@ def chat(
             status_code=400, detail="Chat is not available for this type of document."
         )
 
-    try:
-        answer = chat_with_document(
-            doc.text,
-            DOMAINS[doc.domain],
-            [m.model_dump() for m in req.history],
-            req.question,
+    question = req.question.strip()
+    if not question:
+        raise HTTPException(status_code=422, detail="Please type a question.")
+
+    if len(doc.messages) >= MAX_CHAT_MESSAGES:
+        raise HTTPException(
+            status_code=400,
+            detail="This conversation is getting long. Please clear the chat to continue.",
         )
+
+    # The server remembers the conversation, so it works across refreshes and devices
+    history = [{"role": m.role, "content": m.content} for m in doc.messages[-6:]]
+
+    try:
+        answer = chat_with_document(doc.text, DOMAINS[doc.domain], history, question)
     except Exception as e:
         print("AI error:", e)
         raise ai_unavailable()
 
+    # Saved only after a successful answer, so failed attempts leave nothing behind
+    doc.messages.append(models.ChatMessage(role="user", content=question))
+    doc.messages.append(models.ChatMessage(role="assistant", content=answer))
+    db.commit()
+
     return {"answer": answer}
+
+
+@app.delete("/api/documents/{document_id}/messages")
+def clear_chat(
+    document_id: str,
+    user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    doc = get_own_document(db, document_id, user)
+    doc.messages.clear()
+    db.commit()
+    return {"cleared": True}
